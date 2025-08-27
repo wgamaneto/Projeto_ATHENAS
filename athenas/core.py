@@ -14,7 +14,7 @@ class AthenasRAG:
     def __init__(self, embedder=None, retriever=None, generator=None):
         self.embedder = embedder or self._openai_embedder
         self.retriever = retriever or self._chroma_retriever
-        self.generator = generator or self._default_generator
+        self.generator = generator or self._openai_generator
 
     def _openai_embedder(self, text: str) -> List[float]:
         """Gera embeddings reais usando a API da OpenAI."""
@@ -48,12 +48,36 @@ class AthenasRAG:
         results = collection.query(query_embeddings=[embedding], n_results=top_k)
         return results.get("documents", [[]])[0]
 
-    def _default_generator(self, query: str, context: str) -> str:
-        """Gera uma resposta trivial baseada no contexto.
+    def _openai_generator(self, query: str, context: str) -> str:
+        """Gera uma resposta usando um LLM real baseado no contexto."""
 
-        Em produção esta etapa chamará um LLM (por exemplo GPT-4).
-        """
-        return f"Pergunta: {query}\nContexto utilizado: {context}"
+        from dotenv import load_dotenv
+        from openai import OpenAI
+
+        load_dotenv()
+        client = OpenAI()
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Responda à pergunta do usuário utilizando apenas o contexto "
+                    "fornecido. Se a resposta não estiver presente no contexto, "
+                    "informe que não sabe."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Contexto:\n{context}\n\nPergunta: {query}",
+            },
+        ]
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+        )
+
+        return completion.choices[0].message.content.strip()
 
     def answer(self, query: str) -> str:
         """Executa o pipeline completo de pergunta e resposta."""
