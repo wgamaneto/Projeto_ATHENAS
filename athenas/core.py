@@ -12,25 +12,41 @@ class AthenasRAG:
     """
 
     def __init__(self, embedder=None, retriever=None, generator=None):
-        self.embedder = embedder or self._default_embedder
-        self.retriever = retriever or self._default_retriever
+        self.embedder = embedder or self._openai_embedder
+        self.retriever = retriever or self._chroma_retriever
         self.generator = generator or self._default_generator
 
-    def _default_embedder(self, text: str) -> List[int]:
-        """Gera um vetor numérico simples a partir das palavras.
+    def _openai_embedder(self, text: str) -> List[float]:
+        """Gera embeddings reais usando a API da OpenAI."""
+        from openai import OpenAI
+        from dotenv import load_dotenv
 
-        Esta função estática serve apenas para permitir experimentos iniciais
-        sem dependências externas.
-        """
-        return [len(word) for word in text.split()]
+        load_dotenv()
+        client = OpenAI()
+        response = client.embeddings.create(
+            input=text,
+            model="text-embedding-ada-002",
+        )
+        return response.data[0].embedding
 
-    def _default_retriever(self, query_embedding: List[int],
-                           documents: Iterable[str]) -> Iterable[str]:
-        """Retorna todos os documentos sem qualquer ordenação.
+    def _chroma_retriever(
+        self, query: str, collection_name: str = "documents", top_k: int = 3
+    ) -> Iterable[str]:
+        """Consulta o ChromaDB para recuperar documentos relevantes."""
+        import os
+        from dotenv import load_dotenv
+        import chromadb
 
-        Substitua por uma busca vetorial de verdade em versões futuras.
-        """
-        return documents
+        load_dotenv()
+        client = chromadb.HttpClient(
+            host=os.getenv("CHROMA_HOST", "localhost"),
+            port=int(os.getenv("CHROMA_PORT", "8001")),
+        )
+
+        embedding = self.embedder(query)
+        collection = client.get_collection(collection_name)
+        results = collection.query(query_embeddings=[embedding], n_results=top_k)
+        return results.get("documents", [[]])[0]
 
     def _default_generator(self, query: str, context: str) -> str:
         """Gera uma resposta trivial baseada no contexto.
@@ -39,8 +55,7 @@ class AthenasRAG:
         """
         return f"Pergunta: {query}\nContexto utilizado: {context}"
 
-    def answer(self, query: str, documents: List[str]) -> str:
+    def answer(self, query: str) -> str:
         """Executa o pipeline completo de pergunta e resposta."""
-        docs = list(documents)
-        relevant = next(iter(self.retriever(self.embedder(query), docs)), "")
+        relevant = next(iter(self.retriever(query)), "")
         return self.generator(query, relevant)

@@ -15,14 +15,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # Documentos de exemplo. Em versões futuras serão substituídos por dados corporativos.
-    documentos = [
-        "A ATHENAS é um assistente IA conversacional que unifica o conhecimento interno.",
-        "O objetivo inicial é reduzir o tempo médio gasto na busca por informações.",
-    ]
-
     rag = AthenasRAG()
-    resposta = rag.answer(args.pergunta, documentos)
+    resposta = rag.answer(args.pergunta)
     print(resposta)
 
 
