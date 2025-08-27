@@ -1,0 +1,2 @@
+# Dependências futuras do projeto ATHENAS
+openai>=1.0.0
