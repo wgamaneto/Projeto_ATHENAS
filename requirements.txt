@@ -1,2 +1,4 @@
 # Dependências futuras do projeto ATHENAS
 openai>=1.0.0
+python-dotenv>=1.0.0
+chromadb>=0.5.0
