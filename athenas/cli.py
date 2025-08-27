@@ -17,7 +17,7 @@ def main() -> None:
 
     rag = AthenasRAG()
     resposta = rag.answer(args.pergunta)
-    print(resposta)
+    print({"pergunta": args.pergunta, "resposta": resposta})
 
 
 if __name__ == "__main__":
