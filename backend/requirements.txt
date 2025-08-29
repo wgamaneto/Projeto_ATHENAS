@@ -3,3 +3,4 @@ uvicorn
 openai>=1.0.0
 sentence-transformers>=2.2.2
 redis>=5.0.0
+celery[redis]>=5.3.0
