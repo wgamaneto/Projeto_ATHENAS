@@ -3,7 +3,7 @@
 import os
 import pickle
 from collections import defaultdict
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,6 +24,7 @@ class AthenasRAG:
         generator=None,
         reranker=None,
         summarizer=None,
+        question_rewriter=None,
         cross_encoder_model: str = os.getenv(
             "CROSS_ENCODER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"
         ),
@@ -34,6 +35,7 @@ class AthenasRAG:
         self.generator = generator or self._openai_generator
         self.reranker = reranker or self._cross_encoder_rerank
         self.summarizer = summarizer or self._openai_summarizer
+        self.question_rewriter = question_rewriter or self._openai_question_rewriter
         self._cross_encoder_model_name = cross_encoder_model
         self._cross_encoder = None
         self._bm25 = None
@@ -156,6 +158,40 @@ class AthenasRAG:
         ranked = [doc for _, doc in sorted(zip(scores, docs), reverse=True)]
         return ranked
 
+    def _openai_question_rewriter(
+        self, history: List[Dict[str, str]], question: str
+    ) -> Tuple[str, int]:
+        """Condensa o histórico e a nova pergunta em uma pergunta autônoma."""
+        from openai import OpenAI
+
+        client = OpenAI()
+        conversa = ""
+        for turno in history:
+            q = turno.get("pergunta") or turno.get("question") or ""
+            a = turno.get("resposta") or turno.get("answer") or ""
+            conversa += f"Usuário: {q}\nAssistente: {a}\n"
+
+        prompt = (
+            "Reescreva a última pergunta do usuário para que ela seja independente "
+            "e contenha todo o contexto necessário dado o histórico."\
+            f"\n\n{conversa}\nUsuário: {question}\nPergunta reescrita:"
+        )
+
+        completion = client.chat.completions.create(
+            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Você reformula perguntas considerando o contexto da conversa.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+        )
+
+        pergunta_reescrita = completion.choices[0].message.content.strip()
+        tokens = getattr(getattr(completion, "usage", None), "total_tokens", 0)
+        return pergunta_reescrita, tokens
+
     def _select_model(self, query: str) -> str:
         """Seleciona dinamicamente o modelo de chat conforme a complexidade."""
 
@@ -248,11 +284,18 @@ class AthenasRAG:
         tokens = getattr(getattr(completion, "usage", None), "total_tokens", 0)
         return resumo, tokens
 
-    def answer(self, query: str) -> Tuple[str, List[Dict[str, str]], int]:
+    def answer(
+        self, query: str, historico: Optional[List[Dict[str, str]]] = None
+    ) -> Tuple[str, List[Dict[str, str]], int]:
         """Executa o pipeline de pergunta e resposta retornando também as fontes e tokens."""
-        relevant_docs = list(self.retriever(query))
-        summaries = []
         total_tokens = 0
+        search_query = query
+        if historico:
+            search_query, tokens = self.question_rewriter(historico, query)
+            total_tokens += tokens
+
+        relevant_docs = list(self.retriever(search_query))
+        summaries = []
         for doc in relevant_docs:
             resumo, tokens = self.summarizer(query, doc["texto"])
             summaries.append(resumo)

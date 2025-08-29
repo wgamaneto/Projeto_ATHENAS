@@ -36,15 +36,16 @@ redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 
 @app.get("/answer")
-async def answer(pergunta: str):
+async def answer(pergunta: str, historico: str | None = None):
     """Endpoint simples que utiliza o pipeline RAG completo.
 
     Utiliza um cache Redis para evitar chamadas repetidas à API da OpenAI.
     """
     start_time = perf_counter()
     logger.info("Pergunta recebida: %s", pergunta)
+    cache_key = json.dumps({"pergunta": pergunta, "historico": historico}, sort_keys=True)
 
-    cached = await redis_client.get(pergunta)
+    cached = await redis_client.get(cache_key)
     if cached:
         logger.info("Resposta retornada do cache")
         cached_data = json.loads(cached)
@@ -53,12 +54,13 @@ async def answer(pergunta: str):
 
     try:
         rag = AthenasRAG()
-        resposta, fontes, tokens = rag.answer(pergunta)
+        historico_list = json.loads(historico) if historico else []
+        resposta, fontes, tokens = rag.answer(pergunta, historico_list)
         elapsed = perf_counter() - start_time
         logger.info("Tempo de resposta: %.2fs", elapsed)
         logger.info("Tokens usados: %s", tokens)
         data = {"resposta": resposta, "fontes": fontes, "tokens": tokens}
-        await redis_client.setex(pergunta, CACHE_TTL, json.dumps(data))
+        await redis_client.setex(cache_key, CACHE_TTL, json.dumps(data))
         return {"pergunta": pergunta, **data, "tempo_resposta": elapsed}
     except Exception as exc:
         elapsed = perf_counter() - start_time
