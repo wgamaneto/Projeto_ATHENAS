@@ -11,8 +11,31 @@ import uuid
 import chromadb
 from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader, PyPDFLoader
+
+from presidio_analyzer import AnalyzerEngine
+from presidio_anonymizer import AnonymizerEngine
 
 from athenas.core import AthenasRAG
+
+
+analyzer = AnalyzerEngine()
+anonymizer = AnonymizerEngine()
+
+
+def _load_file(path: Path):
+    """Carrega um arquivo em um formato suportado usando loaders do LangChain."""
+    if path.suffix.lower() == ".pdf":
+        loader = PyPDFLoader(str(path))
+    else:
+        loader = TextLoader(str(path), encoding="utf-8")
+    return loader.load()
+
+
+def _anonymize(text: str) -> str:
+    """Anonimiza PII usando o Microsoft Presidio."""
+    results = analyzer.analyze(text=text, language="en")
+    return anonymizer.anonymize(text=text, analyzer_results=results).text
 
 
 def ingest(folder: str = "./knowledge_base", collection_name: str = "documents") -> None:
@@ -37,15 +60,17 @@ def ingest(folder: str = "./knowledge_base", collection_name: str = "documents")
 
     for path in Path(folder).glob("*"):
         if path.is_file():
-            text = path.read_text(encoding="utf-8")
-            for i, chunk in enumerate(splitter.split_text(text)):
-                embedding = rag.embedder(chunk)
-                collection.add(
-                    ids=[f"{path.stem}-{i}-{uuid.uuid4()}"],
-                    documents=[chunk],
-                    metadatas=[{"source": path.name}],
-                    embeddings=[embedding],
-                )
+            documents = _load_file(path)
+            for doc in documents:
+                sanitized = _anonymize(doc.page_content)
+                for i, chunk in enumerate(splitter.split_text(sanitized)):
+                    embedding = rag.embedder(chunk)
+                    collection.add(
+                        ids=[f"{path.stem}-{i}-{uuid.uuid4()}"],
+                        documents=[chunk],
+                        metadatas=[{"source": path.name}],
+                        embeddings=[embedding],
+                    )
 
     print(
         f"Ingestão concluída: {collection.count()} chunks armazenados na coleção '{collection_name}'."
