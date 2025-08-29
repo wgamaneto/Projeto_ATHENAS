@@ -1,16 +1,30 @@
 import streamlit as st
 import requests
+import logging
 
 st.set_page_config(page_title="Assistente de Conhecimento ATHENAS")
 
 st.title("Assistente de Conhecimento ATHENAS")
 
+logging.basicConfig(
+    filename="feedback.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(message)s",
+)
+
 if "historico" not in st.session_state:
     st.session_state["historico"] = []
 
-for mensagem in st.session_state["historico"]:
+for i, mensagem in enumerate(st.session_state["historico"]):
     st.markdown(f"**Você:** {mensagem['pergunta']}")
     st.markdown(f"**ATHENAS:** {mensagem['resposta']}")
+
+    col_up, col_down = st.columns(2)
+    if col_up.button("👍", key=f"up_{i}"):
+        logging.info("Feedback positivo para a pergunta: %s", mensagem["pergunta"])
+    if col_down.button("👎", key=f"down_{i}"):
+        logging.info("Feedback negativo para a pergunta: %s", mensagem["pergunta"])
+
     fontes_previas = mensagem.get("fontes", [])
     if fontes_previas:
         with st.expander("Fontes utilizadas"):
