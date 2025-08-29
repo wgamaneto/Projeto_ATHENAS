@@ -16,6 +16,11 @@ if st.button("Enviar"):
             if resp.ok:
                 data = resp.json()
                 resposta_area.write(data.get("resposta", ""))
+                fontes = data.get("fontes", [])
+                if fontes:
+                    with st.expander("Fontes utilizadas"):
+                        for fonte in fontes:
+                            st.write(fonte)
             else:
                 resposta_area.error(f"Erro {resp.status_code}")
         except Exception as e:

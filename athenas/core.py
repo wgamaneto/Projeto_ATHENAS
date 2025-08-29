@@ -1,6 +1,6 @@
 """Prototipo inicial do mecanismo RAG da ATHENAS."""
 
-from typing import Iterable, List
+from typing import Iterable, List, Tuple
 
 
 class AthenasRAG:
@@ -79,7 +79,9 @@ class AthenasRAG:
 
         return completion.choices[0].message.content.strip()
 
-    def answer(self, query: str) -> str:
-        """Executa o pipeline completo de pergunta e resposta."""
-        relevant = next(iter(self.retriever(query)), "")
-        return self.generator(query, relevant)
+    def answer(self, query: str) -> Tuple[str, List[str]]:
+        """Executa o pipeline de pergunta e resposta retornando também as fontes."""
+        relevant_docs = list(self.retriever(query))
+        context = "\n\n".join(relevant_docs)
+        resposta = self.generator(query, context)
+        return resposta, relevant_docs
