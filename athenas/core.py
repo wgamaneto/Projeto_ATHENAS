@@ -1,6 +1,6 @@
 """Prototipo inicial do mecanismo RAG da ATHENAS."""
 
-from typing import Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 
 class AthenasRAG:
@@ -43,8 +43,12 @@ class AthenasRAG:
 
     def _chroma_retriever(
         self, query: str, collection_name: str = "documents", top_k: int = 3
-    ) -> Iterable[str]:
-        """Consulta o ChromaDB para recuperar documentos relevantes."""
+    ) -> Iterable[Dict[str, str]]:
+        """Consulta o ChromaDB para recuperar documentos relevantes.
+
+        Retorna uma lista de dicionários com o texto do *chunk* e a fonte
+        original do arquivo.
+        """
         import os
         from dotenv import load_dotenv
         import chromadb
@@ -57,11 +61,22 @@ class AthenasRAG:
 
         embedding = self.embedder(query)
         collection = client.get_collection(collection_name)
-        results = collection.query(query_embeddings=[embedding], n_results=top_k)
+        results = collection.query(
+            query_embeddings=[embedding], n_results=top_k, include=["documents", "metadatas"]
+        )
         docs = results.get("documents", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+
         if docs and self.reranker:
-            docs = self.reranker(query, docs)
-        return docs
+            ranked_docs = self.reranker(query, docs)
+            meta_map = {doc: meta for doc, meta in zip(docs, metadatas)}
+            docs = ranked_docs
+            metadatas = [meta_map[doc] for doc in docs]
+
+        return [
+            {"texto": doc, "fonte": meta.get("source", "")}
+            for doc, meta in zip(docs, metadatas)
+        ]
 
     def _cross_encoder_rerank(self, query: str, docs: List[str]) -> List[str]:
         """Reordena documentos usando um modelo cross-encoder."""
@@ -136,10 +151,10 @@ class AthenasRAG:
 
         return completion.choices[0].message.content.strip()
 
-    def answer(self, query: str) -> Tuple[str, List[str]]:
+    def answer(self, query: str) -> Tuple[str, List[Dict[str, str]]]:
         """Executa o pipeline de pergunta e resposta retornando também as fontes."""
         relevant_docs = list(self.retriever(query))
-        summaries = [self.summarizer(query, doc) for doc in relevant_docs]
+        summaries = [self.summarizer(query, doc["texto"]) for doc in relevant_docs]
         context = "\n\n".join(summaries)
         resposta = self.generator(query, context)
         return resposta, relevant_docs
