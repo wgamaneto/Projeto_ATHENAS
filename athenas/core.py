@@ -156,10 +156,35 @@ class AthenasRAG:
         ranked = [doc for _, doc in sorted(zip(scores, docs), reverse=True)]
         return ranked
 
+    def _select_model(self, query: str) -> str:
+        """Seleciona dinamicamente o modelo de chat conforme a complexidade."""
+
+        fast_model = os.getenv("OPENAI_FAST_MODEL", "gpt-3.5-turbo")
+        full_model = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+        threshold = int(os.getenv("ROUTER_LENGTH_THRESHOLD", "12"))
+
+        keywords = {
+            "resuma",
+            "resumo",
+            "explique",
+            "analise",
+            "análise",
+            "compare",
+            "detalhe",
+            "summarize",
+            "explain",
+            "analyze",
+        }
+
+        if len(query.split()) > threshold or any(k in query.lower() for k in keywords):
+            return full_model
+        return fast_model
+
     def _openai_generator(self, query: str, context: str) -> Tuple[str, int]:
         """Gera uma resposta usando um LLM real baseado no contexto.
 
-        Retorna a resposta gerada e a quantidade de tokens utilizada."""
+        Utiliza um *router* simples para escolher entre modelos mais caros ou
+        econômicos, retornando também a quantidade de tokens utilizada."""
 
         from openai import OpenAI
 
@@ -180,8 +205,10 @@ class AthenasRAG:
             },
         ]
 
+        model = self._select_model(query)
+
         completion = client.chat.completions.create(
-            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+            model=model,
             messages=messages,
         )
 

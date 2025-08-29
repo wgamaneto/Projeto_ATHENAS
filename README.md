@@ -4,7 +4,8 @@ Protótipo inicial da plataforma de **Inteligência de Acesso ao Conhecimento**.
 
 ## Estrutura do Repositório
 
-- `athenas/core.py` – pipeline básico de RAG com componentes substituíveis.
+- `athenas/core.py` – pipeline básico de RAG com componentes substituíveis e
+  roteamento simples entre modelos da OpenAI.
 - `athenas/cli.py` – interface de linha de comando de demonstração.
 - `ingest.py` – script para ingestão e anonimização de documentos no ChromaDB.
 - `backend/` – API FastAPI que expõe o pipeline de perguntas e respostas.
@@ -22,12 +23,17 @@ Crie um arquivo `.env` na raiz com as variáveis necessárias:
 ```bash
 OPENAI_API_KEY="sua-chave"
 OPENAI_CHAT_MODEL="gpt-4o-mini"
+OPENAI_FAST_MODEL="gpt-3.5-turbo"
 OPENAI_EMBEDDING_MODEL="text-embedding-ada-002"
 CROSS_ENCODER_MODEL="cross-encoder/ms-marco-MiniLM-L-6-v2"
 # opcional
 CHROMA_HOST="localhost"
 CHROMA_PORT="8001"
 ```
+
+O pipeline seleciona automaticamente entre os modelos definidos em
+`OPENAI_CHAT_MODEL` e `OPENAI_FAST_MODEL` de acordo com a complexidade da
+pergunta, equilibrando custo e desempenho.
 
 ## Instalação
 
