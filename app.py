@@ -1,6 +1,8 @@
-import streamlit as st
-import requests
+import json
 import logging
+
+import requests
+import streamlit as st
 
 st.set_page_config(page_title="Assistente de Conhecimento ATHENAS")
 
@@ -23,7 +25,11 @@ for i, mensagem in enumerate(st.session_state["historico"]):
     if col_up.button("👍", key=f"up_{i}"):
         logging.info("Feedback positivo para a pergunta: %s", mensagem["pergunta"])
     if col_down.button("👎", key=f"down_{i}"):
-        logging.info("Feedback negativo para a pergunta: %s", mensagem["pergunta"])
+        logging.info(
+            "Feedback negativo para a pergunta: %s | Fontes: %s",
+            mensagem["pergunta"],
+            json.dumps(mensagem.get("fontes", []), ensure_ascii=False),
+        )
 
     fontes_previas = mensagem.get("fontes", [])
     if fontes_previas:
