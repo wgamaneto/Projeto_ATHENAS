@@ -1,7 +1,8 @@
 """Script de ingestão de documentos para o ChromaDB.
 
-Lê todos os arquivos de ``./knowledge_base/``, divide o texto em pequenos
-trechos, gera embeddings e armazena cada chunk em uma coleção do ChromaDB.
+Lê arquivos em ``./knowledge_base/`` ou um caminho específico, divide o texto
+em pequenos trechos, gera embeddings e persiste cada chunk em uma coleção do
+ChromaDB. Também constrói ou atualiza um índice BM25 para busca lexical.
 """
 
 from pathlib import Path
@@ -40,13 +41,11 @@ def _anonymize(text: str) -> str:
     return anonymizer.anonymize(text=text, analyzer_results=results).text
 
 
-def ingest(folder: str = "./knowledge_base", collection_name: str = "documents") -> None:
-    """Lê documentos, gera embeddings e persiste no ChromaDB."""
+def ingest_file(file_path: str, collection_name: str = "documents") -> None:
+    """Ingere um único arquivo para o ChromaDB e atualiza o índice BM25."""
 
     load_dotenv()
 
-    # Tenta conectar a um servidor HTTP do ChromaDB; em caso de falha, usa
-    # um client local persistente para fins de demonstração.
     try:
         client = chromadb.HttpClient(
             host=os.getenv("CHROMA_HOST", "localhost"),
@@ -60,36 +59,46 @@ def ingest(folder: str = "./knowledge_base", collection_name: str = "documents")
     rag = AthenasRAG()
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 
-    bm25_corpus: list[list[str]] = []
     bm25_docs: list[str] = []
     bm25_metas: list[dict] = []
+    bm25_corpus: list[list[str]] = []
 
-    for path in Path(folder).glob("*"):
-        if path.is_file():
-            documents = _load_file(path)
-            for doc in documents:
-                sanitized = _anonymize(doc.page_content)
-                for i, chunk in enumerate(splitter.split_text(sanitized)):
-                    embedding = rag.embedder(chunk)
-                    collection.add(
-                        ids=[f"{path.stem}-{i}-{uuid.uuid4()}"],
-                        documents=[chunk],
-                        metadatas=[{"source": path.name}],
-                        embeddings=[embedding],
-                    )
-                    bm25_docs.append(chunk)
-                    bm25_metas.append({"source": path.name})
-                    bm25_corpus.append(chunk.split())
+    path = Path(file_path)
+    documents = _load_file(path)
+    for doc in documents:
+        sanitized = _anonymize(doc.page_content)
+        for i, chunk in enumerate(splitter.split_text(sanitized)):
+            embedding = rag.embedder(chunk)
+            collection.add(
+                ids=[f"{path.stem}-{i}-{uuid.uuid4()}"],
+                documents=[chunk],
+                metadatas=[{"source": path.name}],
+                embeddings=[embedding],
+            )
+            bm25_docs.append(chunk)
+            bm25_metas.append({"source": path.name})
+            bm25_corpus.append(chunk.split())
+
+    if os.path.exists("bm25_index.pkl"):
+        with open("bm25_index.pkl", "rb") as f:
+            data = pickle.load(f)
+        bm25_docs = data["documents"] + bm25_docs
+        bm25_metas = data["metadatas"] + bm25_metas
+        bm25_corpus = [doc.split() for doc in data["documents"]] + bm25_corpus
 
     bm25 = BM25Okapi(bm25_corpus)
     with open("bm25_index.pkl", "wb") as f:
-        pickle.dump(
-            {"bm25": bm25, "documents": bm25_docs, "metadatas": bm25_metas}, f
-        )
+        pickle.dump({"bm25": bm25, "documents": bm25_docs, "metadatas": bm25_metas}, f)
 
-    print(
-        f"Ingestão concluída: {collection.count()} chunks armazenados na coleção '{collection_name}'."
-    )
+    print(f"Ingestão do arquivo {path.name} concluída.")
+
+
+def ingest(folder: str = "./knowledge_base", collection_name: str = "documents") -> None:
+    """Ingere todos os arquivos de uma pasta."""
+
+    for path in Path(folder).glob("*"):
+        if path.is_file():
+            ingest_file(str(path), collection_name)
 
 
 if __name__ == "__main__":

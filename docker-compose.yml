@@ -9,6 +9,15 @@ services:
       - redis
     environment:
       REDIS_URL: redis://redis:6379/0
+  worker:
+    build:
+      context: .
+      dockerfile: worker.Dockerfile
+    depends_on:
+      - vector-db
+      - redis
+    environment:
+      REDIS_URL: redis://redis:6379/0
   vector-db:
     image: chromadb/chroma
     ports:

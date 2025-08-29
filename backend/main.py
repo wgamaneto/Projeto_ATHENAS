@@ -1,11 +1,12 @@
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from time import perf_counter
 
 import redis.asyncio as redis
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
 from athenas.core import AthenasRAG
 
 
@@ -22,6 +23,9 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from worker import process_document
 
 app = FastAPI(title="ATHENAS MVP")
 
@@ -61,3 +65,14 @@ async def answer(pergunta: str):
         logger.exception("Erro ao processar pergunta: %s", exc)
         logger.info("Tempo até erro: %.2fs", elapsed)
         raise
+
+
+@app.post("/documentos")
+async def upload_documento(file: UploadFile = File(...)):
+    """Recebe um arquivo e agenda a ingestão assíncrona."""
+    dest = Path(__file__).resolve().parent.parent / "knowledge_base" / file.filename
+    with open(dest, "wb") as f:
+        f.write(await file.read())
+    process_document.delay(str(dest))
+    return {"status": "queued", "filename": file.filename}
+
