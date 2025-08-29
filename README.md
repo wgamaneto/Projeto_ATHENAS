@@ -21,6 +21,9 @@ Crie um arquivo `.env` na raiz com as variáveis necessárias:
 
 ```bash
 OPENAI_API_KEY="sua-chave"
+OPENAI_CHAT_MODEL="gpt-4o-mini"
+OPENAI_EMBEDDING_MODEL="text-embedding-ada-002"
+CROSS_ENCODER_MODEL="cross-encoder/ms-marco-MiniLM-L-6-v2"
 # opcional
 CHROMA_HOST="localhost"
 CHROMA_PORT="8001"

@@ -1,6 +1,10 @@
 """Prototipo inicial do mecanismo RAG da ATHENAS."""
 
+import os
 from typing import Dict, Iterable, List, Tuple
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class AthenasRAG:
@@ -18,7 +22,9 @@ class AthenasRAG:
         generator=None,
         reranker=None,
         summarizer=None,
-        cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        cross_encoder_model: str = os.getenv(
+            "CROSS_ENCODER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        ),
     ):
         self.embedder = embedder or self._openai_embedder
         self.retriever = retriever or self._chroma_retriever
@@ -31,13 +37,11 @@ class AthenasRAG:
     def _openai_embedder(self, text: str) -> List[float]:
         """Gera embeddings reais usando a API da OpenAI."""
         from openai import OpenAI
-        from dotenv import load_dotenv
 
-        load_dotenv()
         client = OpenAI()
         response = client.embeddings.create(
             input=text,
-            model="text-embedding-ada-002",
+            model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-ada-002"),
         )
         return response.data[0].embedding
 
@@ -95,10 +99,8 @@ class AthenasRAG:
 
         Retorna a resposta gerada e a quantidade de tokens utilizada."""
 
-        from dotenv import load_dotenv
         from openai import OpenAI
 
-        load_dotenv()
         client = OpenAI()
 
         messages = [
@@ -117,7 +119,7 @@ class AthenasRAG:
         ]
 
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
             messages=messages,
         )
 
@@ -130,10 +132,8 @@ class AthenasRAG:
 
         Retorna o resumo e a quantidade de tokens utilizada."""
 
-        from dotenv import load_dotenv
         from openai import OpenAI
 
-        load_dotenv()
         client = OpenAI()
 
         messages = [
@@ -151,7 +151,7 @@ class AthenasRAG:
         ]
 
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
             messages=messages,
         )
 
