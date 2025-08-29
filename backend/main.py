@@ -8,5 +8,5 @@ app = FastAPI(title="ATHENAS MVP")
 async def answer(pergunta: str):
     """Endpoint simples que utiliza o pipeline RAG completo."""
     rag = AthenasRAG()
-    resposta = rag.answer(pergunta)
-    return {"pergunta": pergunta, "resposta": resposta}
+    resposta, fontes = rag.answer(pergunta)
+    return {"pergunta": pergunta, "resposta": resposta, "fontes": fontes}
