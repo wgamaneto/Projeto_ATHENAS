@@ -40,7 +40,8 @@ if st.button("Enviar"):
     pergunta = st.session_state.get("pergunta_input", "")
     if pergunta:
         try:
-            resp = requests.get("http://localhost:8000/answer", params={"pergunta": pergunta})
+            with st.spinner("ATHENAS está pensando..."):
+                resp = requests.get("http://localhost:8000/answer", params={"pergunta": pergunta})
             if resp.ok:
                 data = resp.json()
                 resposta = data.get("resposta", "")
@@ -50,8 +51,11 @@ if st.button("Enviar"):
                 )
                 st.session_state["pergunta_input"] = ""
             else:
-                st.error(f"Erro {resp.status_code}")
+                st.error("Desculpe, algo deu errado. Tente novamente em alguns instantes.")
         except Exception as e:
-            st.error(f"Erro ao conectar ao backend: {e}")
+            logging.error("Erro ao conectar ao backend: %s", e)
+            st.error(
+                "Desculpe, não consegui me conectar à ATHENAS. Tente novamente em alguns instantes."
+            )
     else:
         st.warning("Digite uma pergunta antes de enviar.")
