@@ -16,7 +16,7 @@ def evaluate(dataset_path: str = "golden_dataset.json", threshold: float = 0.6) 
         resposta_ideal = item["resposta_ideal"]
 
         try:
-            resposta_obtida, _ = rag.answer(pergunta)
+            resposta_obtida, _, _ = rag.answer(pergunta)
         except Exception as exc:
             resposta_obtida = f"Erro: {exc}"
 

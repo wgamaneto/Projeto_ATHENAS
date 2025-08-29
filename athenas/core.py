@@ -90,8 +90,10 @@ class AthenasRAG:
         ranked = [doc for _, doc in sorted(zip(scores, docs), reverse=True)]
         return ranked
 
-    def _openai_generator(self, query: str, context: str) -> str:
-        """Gera uma resposta usando um LLM real baseado no contexto."""
+    def _openai_generator(self, query: str, context: str) -> Tuple[str, int]:
+        """Gera uma resposta usando um LLM real baseado no contexto.
+
+        Retorna a resposta gerada e a quantidade de tokens utilizada."""
 
         from dotenv import load_dotenv
         from openai import OpenAI
@@ -119,10 +121,14 @@ class AthenasRAG:
             messages=messages,
         )
 
-        return completion.choices[0].message.content.strip()
+        resposta = completion.choices[0].message.content.strip()
+        tokens = getattr(getattr(completion, "usage", None), "total_tokens", 0)
+        return resposta, tokens
 
-    def _openai_summarizer(self, query: str, document: str) -> str:
-        """Resume um documento com foco na pergunta do usuário."""
+    def _openai_summarizer(self, query: str, document: str) -> Tuple[str, int]:
+        """Resume um documento com foco na pergunta do usuário.
+
+        Retorna o resumo e a quantidade de tokens utilizada."""
 
         from dotenv import load_dotenv
         from openai import OpenAI
@@ -149,12 +155,20 @@ class AthenasRAG:
             messages=messages,
         )
 
-        return completion.choices[0].message.content.strip()
+        resumo = completion.choices[0].message.content.strip()
+        tokens = getattr(getattr(completion, "usage", None), "total_tokens", 0)
+        return resumo, tokens
 
-    def answer(self, query: str) -> Tuple[str, List[Dict[str, str]]]:
-        """Executa o pipeline de pergunta e resposta retornando também as fontes."""
+    def answer(self, query: str) -> Tuple[str, List[Dict[str, str]], int]:
+        """Executa o pipeline de pergunta e resposta retornando também as fontes e tokens."""
         relevant_docs = list(self.retriever(query))
-        summaries = [self.summarizer(query, doc["texto"]) for doc in relevant_docs]
+        summaries = []
+        total_tokens = 0
+        for doc in relevant_docs:
+            resumo, tokens = self.summarizer(query, doc["texto"])
+            summaries.append(resumo)
+            total_tokens += tokens
         context = "\n\n".join(summaries)
-        resposta = self.generator(query, context)
-        return resposta, relevant_docs
+        resposta, tokens = self.generator(query, context)
+        total_tokens += tokens
+        return resposta, relevant_docs, total_tokens
