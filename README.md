@@ -80,6 +80,22 @@ http://localhost:8000/answer?pergunta=Qual%20o%20objetivo%20do%20projeto?&grupos
 
 O serviço `vector-db` expõe a porta `8001` apenas para fins de demonstração.
 
+## Monitoramento e Análise
+
+Scripts auxiliares ajudam a inspecionar o desempenho do sistema e a qualidade das respostas:
+
+- `dashboard.py` – resume tempos de resposta e uso de tokens a partir dos logs em `logs/backend.log`.
+- `analyze_feedback.py` – gera estatísticas de feedbacks positivos/negativos e produz `erros_para_analise.json` com perguntas problemáticas.
+- `evaluate.py` – mede a acurácia do pipeline usando o conjunto de validação `golden_dataset.json`.
+
+Exemplos de execução:
+
+```bash
+python dashboard.py
+python analyze_feedback.py
+python evaluate.py
+```
+
 ## Contribuição
 
 Sinta-se à vontade para abrir *issues* e *pull requests* com melhorias ou correções.
