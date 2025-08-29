@@ -17,12 +17,14 @@ class AthenasRAG:
         retriever=None,
         generator=None,
         reranker=None,
+        summarizer=None,
         cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
     ):
         self.embedder = embedder or self._openai_embedder
         self.retriever = retriever or self._chroma_retriever
         self.generator = generator or self._openai_generator
         self.reranker = reranker or self._cross_encoder_rerank
+        self.summarizer = summarizer or self._openai_summarizer
         self._cross_encoder_model_name = cross_encoder_model
         self._cross_encoder = None
 
@@ -104,9 +106,40 @@ class AthenasRAG:
 
         return completion.choices[0].message.content.strip()
 
+    def _openai_summarizer(self, query: str, document: str) -> str:
+        """Resume um documento com foco na pergunta do usuário."""
+
+        from dotenv import load_dotenv
+        from openai import OpenAI
+
+        load_dotenv()
+        client = OpenAI()
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Resuma o texto fornecido destacando apenas as partes que "
+                    "ajudem a responder à pergunta do usuário."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Pergunta: {query}\n\nTexto:\n{document}",
+            },
+        ]
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+        )
+
+        return completion.choices[0].message.content.strip()
+
     def answer(self, query: str) -> Tuple[str, List[str]]:
         """Executa o pipeline de pergunta e resposta retornando também as fontes."""
         relevant_docs = list(self.retriever(query))
-        context = "\n\n".join(relevant_docs)
+        summaries = [self.summarizer(query, doc) for doc in relevant_docs]
+        context = "\n\n".join(summaries)
         resposta = self.generator(query, context)
         return resposta, relevant_docs
