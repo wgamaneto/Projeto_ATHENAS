@@ -47,7 +47,14 @@ if st.button("Enviar"):
     if pergunta:
         try:
             with st.spinner("ATHENAS está pensando..."):
-                resp = requests.get("http://localhost:8000/answer", params={"pergunta": pergunta})
+                historico = st.session_state["historico"][-5:]
+                resp = requests.get(
+                    "http://localhost:8000/answer",
+                    params={
+                        "pergunta": pergunta,
+                        "historico": json.dumps(historico, ensure_ascii=False),
+                    },
+                )
             if resp.ok:
                 data = resp.json()
                 resposta = data.get("resposta", "")
