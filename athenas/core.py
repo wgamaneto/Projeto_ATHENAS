@@ -11,10 +11,20 @@ class AthenasRAG:
     modelos reais e integrações conforme evolução do projeto.
     """
 
-    def __init__(self, embedder=None, retriever=None, generator=None):
+    def __init__(
+        self,
+        embedder=None,
+        retriever=None,
+        generator=None,
+        reranker=None,
+        cross_encoder_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    ):
         self.embedder = embedder or self._openai_embedder
         self.retriever = retriever or self._chroma_retriever
         self.generator = generator or self._openai_generator
+        self.reranker = reranker or self._cross_encoder_rerank
+        self._cross_encoder_model_name = cross_encoder_model
+        self._cross_encoder = None
 
     def _openai_embedder(self, text: str) -> List[float]:
         """Gera embeddings reais usando a API da OpenAI."""
@@ -46,7 +56,22 @@ class AthenasRAG:
         embedding = self.embedder(query)
         collection = client.get_collection(collection_name)
         results = collection.query(query_embeddings=[embedding], n_results=top_k)
-        return results.get("documents", [[]])[0]
+        docs = results.get("documents", [[]])[0]
+        if docs and self.reranker:
+            docs = self.reranker(query, docs)
+        return docs
+
+    def _cross_encoder_rerank(self, query: str, docs: List[str]) -> List[str]:
+        """Reordena documentos usando um modelo cross-encoder."""
+        from sentence_transformers import CrossEncoder
+
+        if self._cross_encoder is None:
+            self._cross_encoder = CrossEncoder(self._cross_encoder_model_name)
+
+        pairs = [[query, doc] for doc in docs]
+        scores = self._cross_encoder.predict(pairs)
+        ranked = [doc for _, doc in sorted(zip(scores, docs), reverse=True)]
+        return ranked
 
     def _openai_generator(self, query: str, context: str) -> str:
         """Gera uma resposta usando um LLM real baseado no contexto."""
