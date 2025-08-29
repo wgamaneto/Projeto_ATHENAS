@@ -16,8 +16,13 @@ def main() -> None:
     args = parser.parse_args()
 
     rag = AthenasRAG()
-    resposta, fontes = rag.answer(args.pergunta)
-    print({"pergunta": args.pergunta, "resposta": resposta, "fontes": fontes})
+    resposta, fontes, tokens = rag.answer(args.pergunta)
+    print({
+        "pergunta": args.pergunta,
+        "resposta": resposta,
+        "fontes": fontes,
+        "tokens": tokens,
+    })
 
 
 if __name__ == "__main__":
