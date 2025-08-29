@@ -5,6 +5,7 @@ import pickle
 from collections import defaultdict
 from typing import Dict, Iterable, List, Tuple, Optional
 from dotenv import load_dotenv
+from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
@@ -31,7 +32,7 @@ class AthenasRAG:
         ),
         bm25_index_path: str = "bm25_index.pkl",
     ):
-        self.embedder = embedder or self._openai_embedder
+        self.embedder = embedder or self._local_embedder
         self.retriever = retriever or self._chroma_retriever
         self.generator = generator or self._openai_generator
         self.reranker = reranker or self._cross_encoder_rerank
@@ -44,17 +45,16 @@ class AthenasRAG:
         self._bm25_docs: List[str] = []
         self._bm25_metas: List[Dict] = []
         self._bm25_index_path = bm25_index_path
-
-    def _openai_embedder(self, text: str) -> List[float]:
-        """Gera embeddings reais usando a API da OpenAI."""
-        from openai import OpenAI
-
-        client = OpenAI()
-        response = client.embeddings.create(
-            input=text,
-            model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-ada-002"),
+        self._embedding_model_path = os.getenv(
+            "LOCAL_EMBEDDING_MODEL", "local_embedding_model"
         )
-        return response.data[0].embedding
+        self._embedding_model = None
+
+    def _local_embedder(self, text: str) -> List[float]:
+        """Gera embeddings usando um modelo SentenceTransformer local."""
+        if self._embedding_model is None:
+            self._embedding_model = SentenceTransformer(self._embedding_model_path)
+        return self._embedding_model.encode(text).tolist()
 
     def _load_bm25_index(self) -> None:
         """Carrega o índice BM25 persistido durante a ingestão."""

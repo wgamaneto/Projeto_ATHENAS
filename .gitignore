@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 
 feedback.log
+local_embedding_model/
