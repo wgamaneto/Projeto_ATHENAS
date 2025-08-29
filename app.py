@@ -72,3 +72,31 @@ if st.button("Enviar"):
             )
     else:
         st.warning("Digite uma pergunta antes de enviar.")
+
+
+st.header("Gerar apresentação")
+topico = st.text_input("Tópico da apresentação", key="topico_apresentacao")
+num_slides = st.number_input(
+    "Número de slides", min_value=1, max_value=20, value=5, key="num_slides_apresentacao"
+)
+
+if st.button("Gerar apresentação"):
+    if topico:
+        try:
+            with st.spinner("Gerando apresentação..."):
+                resp = requests.get(
+                    "http://localhost:8000/gerar_apresentacao",
+                    params={"topico": topico, "num_slides": int(num_slides)},
+                )
+            if resp.ok:
+                data = resp.json()
+                slides = data.get("slides", [])
+                for i, slide in enumerate(slides, 1):
+                    st.markdown(f"**Slide {i}:** {slide}")
+            else:
+                st.error("Desculpe, não foi possível gerar a apresentação.")
+        except Exception as e:
+            logging.error("Erro ao gerar apresentação: %s", e)
+            st.error("Não consegui conectar ao serviço de geração.")
+    else:
+        st.warning("Digite um tópico antes de gerar.")

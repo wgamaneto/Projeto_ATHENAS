@@ -79,6 +79,30 @@ async def answer(
         raise
 
 
+@app.get("/gerar_apresentacao")
+async def gerar_apresentacao(topico: str, num_slides: int = 5):
+    """Gera uma apresentação simples baseada em um tópico."""
+    start_time = perf_counter()
+    logger.info("Solicitação de apresentação: %s", topico)
+    try:
+        rag = AthenasRAG()
+        slides, tokens = rag.generate_presentation(topico, num_slides)
+        elapsed = perf_counter() - start_time
+        logger.info("Tempo de geração: %.2fs", elapsed)
+        logger.info("Tokens usados: %s", tokens)
+        return {
+            "topico": topico,
+            "slides": slides,
+            "tokens": tokens,
+            "tempo_resposta": elapsed,
+        }
+    except Exception as exc:
+        elapsed = perf_counter() - start_time
+        logger.exception("Erro ao gerar apresentação: %s", exc)
+        logger.info("Tempo até erro: %.2fs", elapsed)
+        raise
+
+
 @app.post("/documentos")
 async def upload_documento(file: UploadFile = File(...)):
     """Recebe um arquivo e agenda a ingestão assíncrona."""
