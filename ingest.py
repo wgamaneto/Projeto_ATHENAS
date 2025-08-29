@@ -7,11 +7,13 @@ trechos, gera embeddings e armazena cada chunk em uma coleção do ChromaDB.
 from pathlib import Path
 import os
 import uuid
+import pickle
 
 import chromadb
 from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader, PyPDFLoader
+from rank_bm25 import BM25Okapi
 
 from presidio_analyzer import AnalyzerEngine
 from presidio_anonymizer import AnonymizerEngine
@@ -58,6 +60,10 @@ def ingest(folder: str = "./knowledge_base", collection_name: str = "documents")
     rag = AthenasRAG()
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 
+    bm25_corpus: list[list[str]] = []
+    bm25_docs: list[str] = []
+    bm25_metas: list[dict] = []
+
     for path in Path(folder).glob("*"):
         if path.is_file():
             documents = _load_file(path)
@@ -71,6 +77,15 @@ def ingest(folder: str = "./knowledge_base", collection_name: str = "documents")
                         metadatas=[{"source": path.name}],
                         embeddings=[embedding],
                     )
+                    bm25_docs.append(chunk)
+                    bm25_metas.append({"source": path.name})
+                    bm25_corpus.append(chunk.split())
+
+    bm25 = BM25Okapi(bm25_corpus)
+    with open("bm25_index.pkl", "wb") as f:
+        pickle.dump(
+            {"bm25": bm25, "documents": bm25_docs, "metadatas": bm25_metas}, f
+        )
 
     print(
         f"Ingestão concluída: {collection.count()} chunks armazenados na coleção '{collection_name}'."

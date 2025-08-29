@@ -1,6 +1,8 @@
 """Prototipo inicial do mecanismo RAG da ATHENAS."""
 
 import os
+import pickle
+from collections import defaultdict
 from typing import Dict, Iterable, List, Tuple
 from dotenv import load_dotenv
 
@@ -25,6 +27,7 @@ class AthenasRAG:
         cross_encoder_model: str = os.getenv(
             "CROSS_ENCODER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"
         ),
+        bm25_index_path: str = "bm25_index.pkl",
     ):
         self.embedder = embedder or self._openai_embedder
         self.retriever = retriever or self._chroma_retriever
@@ -33,6 +36,10 @@ class AthenasRAG:
         self.summarizer = summarizer or self._openai_summarizer
         self._cross_encoder_model_name = cross_encoder_model
         self._cross_encoder = None
+        self._bm25 = None
+        self._bm25_docs: List[str] = []
+        self._bm25_metas: List[Dict] = []
+        self._bm25_index_path = bm25_index_path
 
     def _openai_embedder(self, text: str) -> List[float]:
         """Gera embeddings reais usando a API da OpenAI."""
@@ -45,14 +52,59 @@ class AthenasRAG:
         )
         return response.data[0].embedding
 
+    def _load_bm25_index(self) -> None:
+        """Carrega o índice BM25 persistido durante a ingestão."""
+        if self._bm25 is None:
+            from rank_bm25 import BM25Okapi
+
+            try:
+                with open(self._bm25_index_path, "rb") as f:
+                    data = pickle.load(f)
+                self._bm25 = data.get("bm25")
+                self._bm25_docs = data.get("documents", [])
+                self._bm25_metas = data.get("metadatas", [])
+                if self._bm25 is None and self._bm25_docs:
+                    corpus = [doc.split() for doc in self._bm25_docs]
+                    self._bm25 = BM25Okapi(corpus)
+            except FileNotFoundError:
+                self._bm25 = None
+
+    def _bm25_search(self, query: str, top_k: int) -> Tuple[List[str], List[Dict]]:
+        """Executa busca BM25 usando rank_bm25."""
+        self._load_bm25_index()
+        if not self._bm25:
+            return [], []
+        tokens = query.split()
+        scores = self._bm25.get_scores(tokens)
+        ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:top_k]
+        docs = [self._bm25_docs[i] for i, _ in ranked]
+        metas = [self._bm25_metas[i] for i, _ in ranked]
+        return docs, metas
+
+    def _rrf_fusion(
+        self,
+        docs_lists: List[List[str]],
+        metas_lists: List[List[Dict]],
+        top_k: int,
+        k: int = 60,
+    ) -> Tuple[List[str], List[Dict]]:
+        """Combina listas ranqueadas usando Reciprocal Rank Fusion."""
+        scores = defaultdict(float)
+        meta_map: Dict[str, Dict] = {}
+        for docs, metas in zip(docs_lists, metas_lists):
+            for rank, (doc, meta) in enumerate(zip(docs, metas), start=1):
+                scores[doc] += 1 / (k + rank)
+                if doc not in meta_map:
+                    meta_map[doc] = meta
+        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        docs = [doc for doc, _ in ranked[:top_k]]
+        metas = [meta_map[doc] for doc in docs]
+        return docs, metas
+
     def _chroma_retriever(
         self, query: str, collection_name: str = "documents", top_k: int = 3
     ) -> Iterable[Dict[str, str]]:
-        """Consulta o ChromaDB para recuperar documentos relevantes.
-
-        Retorna uma lista de dicionários com o texto do *chunk* e a fonte
-        original do arquivo.
-        """
+        """Consulta o ChromaDB e BM25 para recuperar documentos relevantes."""
         import os
         from dotenv import load_dotenv
         import chromadb
@@ -66,10 +118,20 @@ class AthenasRAG:
         embedding = self.embedder(query)
         collection = client.get_collection(collection_name)
         results = collection.query(
-            query_embeddings=[embedding], n_results=top_k, include=["documents", "metadatas"]
+            query_embeddings=[embedding],
+            n_results=top_k,
+            include=["documents", "metadatas"],
         )
-        docs = results.get("documents", [[]])[0]
-        metadatas = results.get("metadatas", [[]])[0]
+        chroma_docs = results.get("documents", [[]])[0]
+        chroma_metas = results.get("metadatas", [[]])[0]
+
+        bm25_docs, bm25_metas = self._bm25_search(query, top_k)
+
+        docs, metadatas = self._rrf_fusion(
+            [chroma_docs, bm25_docs],
+            [chroma_metas, bm25_metas],
+            top_k,
+        )
 
         if docs and self.reranker:
             ranked_docs = self.reranker(query, docs)
