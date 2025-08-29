@@ -25,6 +25,7 @@ class AthenasRAG:
         reranker=None,
         summarizer=None,
         question_rewriter=None,
+        presentation_generator=None,
         cross_encoder_model: str = os.getenv(
             "CROSS_ENCODER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"
         ),
@@ -36,6 +37,7 @@ class AthenasRAG:
         self.reranker = reranker or self._cross_encoder_rerank
         self.summarizer = summarizer or self._openai_summarizer
         self.question_rewriter = question_rewriter or self._openai_question_rewriter
+        self.presentation_generator = presentation_generator or self._presentation_generator
         self._cross_encoder_model_name = cross_encoder_model
         self._cross_encoder = None
         self._bm25 = None
@@ -335,3 +337,42 @@ class AthenasRAG:
         resposta, tokens = self.generator(query, context)
         total_tokens += tokens
         return resposta, relevant_docs, total_tokens
+
+    def _presentation_generator(
+        self, topic: str, num_slides: int
+    ) -> Tuple[List[str], int]:
+        """Gera tópicos de apresentação para um dado assunto."""
+        total_tokens = 0
+        pontos_chave: List[str] = []
+        for _ in range(num_slides):
+            resp, _, tokens = self.answer(f"Apresente um ponto chave sobre {topic}.")
+            pontos_chave.append(resp)
+            total_tokens += tokens
+
+        from openai import OpenAI
+
+        client = OpenAI()
+        prompt = (
+            f"Organize os seguintes pontos em {num_slides} slides sobre '{topic}'. "
+            "Responda no formato:\nSlide 1:\n- ponto\nSlide 2:\n- ponto\n..."
+        )
+        prompt += "\n\nPontos:\n" + "\n".join(f"- {p}" for p in pontos_chave)
+        completion = client.chat.completions.create(
+            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Você organiza informações em apresentações.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+        )
+        texto = completion.choices[0].message.content.strip()
+        tokens = getattr(getattr(completion, "usage", None), "total_tokens", 0)
+        total_tokens += tokens
+        slides = [s.strip() for s in texto.split("Slide") if s.strip()]
+        return slides, total_tokens
+
+    def generate_presentation(self, topic: str, num_slides: int) -> Tuple[List[str], int]:
+        """Interface pública para geração de apresentações."""
+        return self.presentation_generator(topic, num_slides)
