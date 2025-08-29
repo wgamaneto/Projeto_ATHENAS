@@ -1,8 +1,10 @@
+import json
 import logging
+import os
 from pathlib import Path
-from time import perf_counter, time
-from typing import Any, Dict, Tuple
+from time import perf_counter
 
+import redis.asyncio as redis
 from fastapi import FastAPI
 from athenas.core import AthenasRAG
 
@@ -25,26 +27,25 @@ app = FastAPI(title="ATHENAS MVP")
 
 
 CACHE_TTL = 300  # segundos
-_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 
 @app.get("/answer")
 async def answer(pergunta: str):
     """Endpoint simples que utiliza o pipeline RAG completo.
 
-    Utiliza um cache em memória para evitar chamadas repetidas à API da OpenAI.
+    Utiliza um cache Redis para evitar chamadas repetidas à API da OpenAI.
     """
     start_time = perf_counter()
     logger.info("Pergunta recebida: %s", pergunta)
 
-    now = time()
-    cached = _cache.get(pergunta)
-    if cached and now - cached[0] < CACHE_TTL:
+    cached = await redis_client.get(pergunta)
+    if cached:
         logger.info("Resposta retornada do cache")
+        cached_data = json.loads(cached)
         elapsed = perf_counter() - start_time
-        return {"pergunta": pergunta, **cached[1], "tempo_resposta": elapsed}
-    elif cached:
-        del _cache[pergunta]
+        return {"pergunta": pergunta, **cached_data, "tempo_resposta": elapsed}
 
     try:
         rag = AthenasRAG()
@@ -52,14 +53,9 @@ async def answer(pergunta: str):
         elapsed = perf_counter() - start_time
         logger.info("Tempo de resposta: %.2fs", elapsed)
         logger.info("Tokens usados: %s", tokens)
-        _cache[pergunta] = (now, {"resposta": resposta, "fontes": fontes, "tokens": tokens})
-        return {
-            "pergunta": pergunta,
-            "resposta": resposta,
-            "fontes": fontes,
-            "tokens": tokens,
-            "tempo_resposta": elapsed,
-        }
+        data = {"resposta": resposta, "fontes": fontes, "tokens": tokens}
+        await redis_client.setex(pergunta, CACHE_TTL, json.dumps(data))
+        return {"pergunta": pergunta, **data, "tempo_resposta": elapsed}
     except Exception as exc:
         elapsed = perf_counter() - start_time
         logger.exception("Erro ao processar pergunta: %s", exc)
