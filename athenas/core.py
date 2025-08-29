@@ -71,16 +71,31 @@ class AthenasRAG:
             except FileNotFoundError:
                 self._bm25 = None
 
-    def _bm25_search(self, query: str, top_k: int) -> Tuple[List[str], List[Dict]]:
-        """Executa busca BM25 usando rank_bm25."""
+    def _bm25_search(
+        self, query: str, top_k: int, user_groups: Optional[List[str]] = None
+    ) -> Tuple[List[str], List[Dict]]:
+        """Executa busca BM25 usando rank_bm25.
+
+        Caso ``user_groups`` seja fornecido, apenas documentos cujo metadado
+        ``allowed_groups`` intersecte com esses grupos serão retornados."""
+
         self._load_bm25_index()
         if not self._bm25:
             return [], []
         tokens = query.split()
         scores = self._bm25.get_scores(tokens)
-        ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:top_k]
-        docs = [self._bm25_docs[i] for i, _ in ranked]
-        metas = [self._bm25_metas[i] for i, _ in ranked]
+        ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
+
+        docs: List[str] = []
+        metas: List[Dict] = []
+        for idx, _ in ranked:
+            meta = self._bm25_metas[idx]
+            allowed = meta.get("allowed_groups", [])
+            if user_groups is None or set(allowed).intersection(user_groups):
+                docs.append(self._bm25_docs[idx])
+                metas.append(meta)
+            if len(docs) >= top_k:
+                break
         return docs, metas
 
     def _rrf_fusion(
@@ -104,9 +119,17 @@ class AthenasRAG:
         return docs, metas
 
     def _chroma_retriever(
-        self, query: str, collection_name: str = "documents", top_k: int = 3
+        self,
+        query: str,
+        collection_name: str = "documents",
+        top_k: int = 3,
+        user_groups: Optional[List[str]] = None,
     ) -> Iterable[Dict[str, str]]:
-        """Consulta o ChromaDB e BM25 para recuperar documentos relevantes."""
+        """Consulta o ChromaDB e BM25 para recuperar documentos relevantes.
+
+        Quando ``user_groups`` é fornecido, a consulta ao ChromaDB aplica um
+        filtro para retornar apenas documentos cujo campo ``allowed_groups``
+        contenha algum desses grupos."""
         import os
         from dotenv import load_dotenv
         import chromadb
@@ -119,15 +142,17 @@ class AthenasRAG:
 
         embedding = self.embedder(query)
         collection = client.get_collection(collection_name)
+        where = {"allowed_groups": {"$in": user_groups}} if user_groups else {}
         results = collection.query(
             query_embeddings=[embedding],
             n_results=top_k,
+            where=where,
             include=["documents", "metadatas"],
         )
         chroma_docs = results.get("documents", [[]])[0]
         chroma_metas = results.get("metadatas", [[]])[0]
 
-        bm25_docs, bm25_metas = self._bm25_search(query, top_k)
+        bm25_docs, bm25_metas = self._bm25_search(query, top_k, user_groups)
 
         docs, metadatas = self._rrf_fusion(
             [chroma_docs, bm25_docs],
@@ -285,16 +310,22 @@ class AthenasRAG:
         return resumo, tokens
 
     def answer(
-        self, query: str, historico: Optional[List[Dict[str, str]]] = None
+        self,
+        query: str,
+        historico: Optional[List[Dict[str, str]]] = None,
+        user_groups: Optional[List[str]] = None,
     ) -> Tuple[str, List[Dict[str, str]], int]:
-        """Executa o pipeline de pergunta e resposta retornando também as fontes e tokens."""
+        """Executa o pipeline de pergunta e resposta retornando também as fontes e tokens.
+
+        Os documentos recuperados respeitam as permissões indicadas em
+        ``user_groups``."""
         total_tokens = 0
         search_query = query
         if historico:
             search_query, tokens = self.question_rewriter(historico, query)
             total_tokens += tokens
 
-        relevant_docs = list(self.retriever(search_query))
+        relevant_docs = list(self.retriever(search_query, user_groups=user_groups))
         summaries = []
         for doc in relevant_docs:
             resumo, tokens = self.summarizer(query, doc["texto"])

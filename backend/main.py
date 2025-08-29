@@ -36,14 +36,23 @@ redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 
 @app.get("/answer")
-async def answer(pergunta: str, historico: str | None = None):
+async def answer(
+    pergunta: str,
+    historico: str | None = None,
+    grupos: str | None = None,
+):
     """Endpoint simples que utiliza o pipeline RAG completo.
 
-    Utiliza um cache Redis para evitar chamadas repetidas à API da OpenAI.
-    """
+    Recebe a pergunta do usuário, histórico da conversa e, opcionalmente, os
+    grupos aos quais o usuário pertence. As respostas retornadas consideram as
+    permissões desses grupos. Utiliza um cache Redis para evitar chamadas
+    repetidas à API da OpenAI."""
     start_time = perf_counter()
     logger.info("Pergunta recebida: %s", pergunta)
-    cache_key = json.dumps({"pergunta": pergunta, "historico": historico}, sort_keys=True)
+    cache_key = json.dumps(
+        {"pergunta": pergunta, "historico": historico, "grupos": grupos},
+        sort_keys=True,
+    )
 
     cached = await redis_client.get(cache_key)
     if cached:
@@ -55,7 +64,8 @@ async def answer(pergunta: str, historico: str | None = None):
     try:
         rag = AthenasRAG()
         historico_list = json.loads(historico) if historico else []
-        resposta, fontes, tokens = rag.answer(pergunta, historico_list)
+        grupos_list = [g.strip() for g in grupos.split(",") if g.strip()] if grupos else None
+        resposta, fontes, tokens = rag.answer(pergunta, historico_list, grupos_list)
         elapsed = perf_counter() - start_time
         logger.info("Tempo de resposta: %.2fs", elapsed)
         logger.info("Tokens usados: %s", tokens)

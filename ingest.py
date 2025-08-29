@@ -41,10 +41,23 @@ def _anonymize(text: str) -> str:
     return anonymizer.anonymize(text=text, analyzer_results=results).text
 
 
-def ingest_file(file_path: str, collection_name: str = "documents") -> None:
-    """Ingere um único arquivo para o ChromaDB e atualiza o índice BM25."""
+def ingest_file(
+    file_path: str,
+    collection_name: str = "documents",
+    allowed_groups: list[str] | None = None,
+) -> None:
+    """Ingere um único arquivo para o ChromaDB e atualiza o índice BM25.
+
+    Cada chunk recebe metadados com o nome do arquivo de origem e os grupos
+    autorizados a acessá-lo. Os grupos podem ser informados via parâmetro ou,
+    caso não sejam fornecidos, serão lidos da variável ``DEFAULT_ALLOWED_GROUPS``
+    (separados por vírgula)."""
 
     load_dotenv()
+
+    if allowed_groups is None:
+        default = os.getenv("DEFAULT_ALLOWED_GROUPS", "public")
+        allowed_groups = [g.strip() for g in default.split(",") if g.strip()]
 
     try:
         client = chromadb.HttpClient(
@@ -72,11 +85,11 @@ def ingest_file(file_path: str, collection_name: str = "documents") -> None:
             collection.add(
                 ids=[f"{path.stem}-{i}-{uuid.uuid4()}"],
                 documents=[chunk],
-                metadatas=[{"source": path.name}],
+                metadatas=[{"source": path.name, "allowed_groups": allowed_groups}],
                 embeddings=[embedding],
             )
             bm25_docs.append(chunk)
-            bm25_metas.append({"source": path.name})
+            bm25_metas.append({"source": path.name, "allowed_groups": allowed_groups})
             bm25_corpus.append(chunk.split())
 
     if os.path.exists("bm25_index.pkl"):
