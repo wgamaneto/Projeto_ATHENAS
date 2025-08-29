@@ -29,7 +29,10 @@ for i, mensagem in enumerate(st.session_state["historico"]):
     if fontes_previas:
         with st.expander("Fontes utilizadas"):
             for fonte in fontes_previas:
-                st.write(fonte)
+                origem = fonte.get("fonte", "")
+                texto = fonte.get("texto", "")
+                st.markdown(f"**Fonte:** {origem}")
+                st.write(texto)
 
 pergunta = st.text_input("Digite sua pergunta:", key="pergunta_input")
 
