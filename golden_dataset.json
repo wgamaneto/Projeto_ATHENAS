@@ -1,0 +1,50 @@
+[
+  {
+    "pergunta": "O que é energia solar?",
+    "resposta_ideal": "A energia solar é obtida a partir da luz do Sol e pode ser convertida em eletricidade por meio de painéis fotovoltaicos."
+  },
+  {
+    "pergunta": "Quais são os principais benefícios da energia solar?",
+    "resposta_ideal": "Os principais benefícios são a redução das emissões de gases de efeito estufa e a diminuição da dependência de combustíveis fósseis, além de economia na conta de energia."
+  },
+  {
+    "pergunta": "Qual é uma das vantagens econômicas da energia solar?",
+    "resposta_ideal": "Ela pode gerar economia significativa na conta de energia."
+  },
+  {
+    "pergunta": "Quais desafios a energia solar enfrenta?",
+    "resposta_ideal": "Enfrenta desafios como a intermitência da geração e o custo inicial de instalação dos sistemas fotovoltaicos."
+  },
+  {
+    "pergunta": "Por que a intermitência é um problema para a energia solar?",
+    "resposta_ideal": "A intermitência dificulta a geração contínua, já que a produção varia com a disponibilidade de sol."
+  },
+  {
+    "pergunta": "O que as pesquisas buscam melhorar para tornar a energia solar mais confiável?",
+    "resposta_ideal": "Pesquisas buscam melhorar o armazenamento de energia para tornar a fonte mais confiável."
+  },
+  {
+    "pergunta": "O que indica o futuro da energia solar em termos de redes?",
+    "resposta_ideal": "O futuro aponta para a integração com redes inteligentes."
+  },
+  {
+    "pergunta": "Que material emergente pode tornar os painéis solares mais eficientes?",
+    "resposta_ideal": "Materiais como perovskitas prometem tornar os painéis mais baratos e eficientes."
+  },
+  {
+    "pergunta": "Como os painéis solares convertem luz em eletricidade?",
+    "resposta_ideal": "Painéis solares possuem células fotovoltaicas que convertem a luz do Sol em eletricidade."
+  },
+  {
+    "pergunta": "Como a eficiência dos painéis solares tem evoluído?",
+    "resposta_ideal": "A eficiência dos painéis tem aumentado com avanços tecnológicos, permitindo maior geração de energia em espaços menores."
+  },
+  {
+    "pergunta": "Por que a energia solar é considerada uma fonte renovável promissora?",
+    "resposta_ideal": "É considerada promissora pela abundância e baixo impacto ambiental."
+  },
+  {
+    "pergunta": "Qual o impacto ambiental da energia solar?",
+    "resposta_ideal": "Ela apresenta baixo impacto ambiental."
+  }
+]
