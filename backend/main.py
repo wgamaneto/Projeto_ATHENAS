@@ -1,11 +1,24 @@
 import logging
+from pathlib import Path
 from time import perf_counter, time
 from typing import Any, Dict, Tuple
 
 from fastapi import FastAPI
 from athenas.core import AthenasRAG
 
-logging.basicConfig(level=logging.INFO)
+
+LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOG_DIR / "backend.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler(),
+    ],
+)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ATHENAS MVP")
