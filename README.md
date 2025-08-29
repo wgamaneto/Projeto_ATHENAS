@@ -71,10 +71,11 @@ Uma API de demonstração pode ser levantada com Docker:
 docker-compose up --build
 ```
 
-Após a inicialização o endpoint estará disponível em `http://localhost:8000/answer`. Exemplo:
+Após a inicialização o endpoint estará disponível em `http://localhost:8000/answer`. 
+O parâmetro opcional `grupos` permite informar as permissões do usuário. Exemplo:
 
 ```
-http://localhost:8000/answer?pergunta=Qual%20o%20objetivo%20do%20projeto?
+http://localhost:8000/answer?pergunta=Qual%20o%20objetivo%20do%20projeto?&grupos=vendas,diretoria
 ```
 
 O serviço `vector-db` expõe a porta `8001` apenas para fins de demonstração.
