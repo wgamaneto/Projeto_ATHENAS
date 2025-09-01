@@ -1,5 +1,6 @@
 """Prototipo inicial do mecanismo RAG da ATHENAS."""
 
+import json
 import os
 import pickle
 from collections import defaultdict
@@ -49,6 +50,91 @@ class AthenasRAG:
             "LOCAL_EMBEDDING_MODEL", "local_embedding_model"
         )
         self._embedding_model = None
+
+    # ------------------------------------------------------------------
+    # Router e ferramentas
+    # ------------------------------------------------------------------
+
+    def _router(self, pergunta: str) -> Tuple[str, Dict[str, str]]:
+        """Decide qual ferramenta utilizar para responder à pergunta."""
+        from openai import OpenAI
+
+        client = OpenAI()
+        system_prompt = (
+            "Você é um roteador de intenções. Escolha qual ferramenta da ATHENAS "
+            "deve ser usada para atender a solicitação do usuário. As opções são:\n"
+            "- ferramenta_busca_documentos: responde perguntas utilizando a base de documentos. Parâmetros: {\"query\": texto}\n"
+            "- ferramenta_gerar_resumo_executivo: cria um resumo sobre um tópico. Parâmetros: {\"topic\": texto}\n"
+            "- ferramenta_analisar_feedback: analisa os feedbacks do sistema. Parâmetros: {}\n"
+            "Responda apenas em JSON com os campos 'ferramenta' e 'parametros'."
+        )
+
+        completion = client.chat.completions.create(
+            model=os.getenv("OPENAI_ROUTER_MODEL", "gpt-4o-mini"),
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": pergunta},
+            ],
+            temperature=0,
+        )
+
+        try:
+            decisao = json.loads(completion.choices[0].message.content)
+            ferramenta = decisao.get("ferramenta", "ferramenta_busca_documentos")
+            params = decisao.get("parametros", {})
+        except Exception:
+            ferramenta = "ferramenta_busca_documentos"
+            params = {"query": pergunta}
+        return ferramenta, params
+
+    def executar(self, pergunta: str) -> Dict[str, object]:
+        """Executa o roteador e chama a ferramenta adequada."""
+        ferramenta, params = self._router(pergunta)
+        func = getattr(self, ferramenta, None)
+        if not func:
+            return {"erro": f"Ferramenta '{ferramenta}' não encontrada."}
+        resultado = func(**params)
+        return {"ferramenta": ferramenta, **resultado}
+
+    # -------------------- Ferramentas ---------------------------------
+
+    def ferramenta_busca_documentos(self, query: str) -> Dict[str, object]:
+        """Wrapper do fluxo RAG tradicional."""
+        resposta, fontes, tokens = self.answer(query)
+        return {"resposta": resposta, "fontes": fontes, "tokens": tokens}
+
+    def ferramenta_gerar_resumo_executivo(self, topic: str) -> Dict[str, object]:
+        """Gera um resumo executivo sobre um tópico."""
+        from openai import OpenAI
+
+        client = OpenAI()
+        completion = client.chat.completions.create(
+            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Você produz resumos executivos claros e objetivos.",
+                },
+                {"role": "user", "content": f"Gere um resumo executivo sobre: {topic}"},
+            ],
+        )
+        resumo = completion.choices[0].message.content.strip()
+        tokens = getattr(getattr(completion, "usage", None), "total_tokens", 0)
+        return {"resumo": resumo, "tokens": tokens}
+
+    def ferramenta_analisar_feedback(self) -> Dict[str, object]:
+        """Retorna estatísticas simples de feedback dos usuários."""
+        from analyze_feedback import read_feedback_log
+
+        positivos, negativos, _, _ = read_feedback_log()
+        total = positivos + negativos
+        pct_pos = (positivos / total * 100) if total else 0
+        pct_neg = (negativos / total * 100) if total else 0
+        resumo = (
+            f"Feedbacks positivos: {positivos} ({pct_pos:.2f}%) | "
+            f"Feedbacks negativos: {negativos} ({pct_neg:.2f}%)"
+        )
+        return {"resumo": resumo, "tokens": 0}
 
     def _local_embedder(self, text: str) -> List[float]:
         """Gera embeddings usando um modelo SentenceTransformer local."""
