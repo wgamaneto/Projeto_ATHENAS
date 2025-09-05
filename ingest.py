@@ -80,16 +80,18 @@ def ingest_file(
     documents = _load_file(path)
     for doc in documents:
         sanitized = _anonymize(doc.page_content)
+        metadata = {"source": path.name, "allowed_groups": allowed_groups}
+        sanitized_metadata = {k: str(v) for k, v in metadata.items()}
         for i, chunk in enumerate(splitter.split_text(sanitized)):
             embedding = rag.embedder(chunk)
             collection.add(
                 ids=[f"{path.stem}-{i}-{uuid.uuid4()}"],
                 documents=[chunk],
-                metadatas=[{"source": path.name, "allowed_groups": allowed_groups}],
+                metadatas=[sanitized_metadata],
                 embeddings=[embedding],
             )
             bm25_docs.append(chunk)
-            bm25_metas.append({"source": path.name, "allowed_groups": allowed_groups})
+            bm25_metas.append(metadata)
             bm25_corpus.append(chunk.split())
 
     if os.path.exists("bm25_index.pkl"):
