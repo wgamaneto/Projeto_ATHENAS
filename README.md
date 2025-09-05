@@ -76,7 +76,7 @@ O script divide os documentos em *chunks*, anonimiza informações sensíveis co
 Uma API de demonstração pode ser levantada com Docker:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 Após a inicialização o endpoint estará disponível em `http://localhost:8000/answer`. 
