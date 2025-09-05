@@ -7,6 +7,7 @@ from collections import defaultdict
 from typing import Dict, Iterable, List, Tuple, Optional
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
+import google.generativeai as genai
 
 load_dotenv()
 
@@ -35,7 +36,7 @@ class AthenasRAG:
     ):
         self.embedder = embedder or self._local_embedder
         self.retriever = retriever or self._chroma_retriever
-        self.generator = generator or self._openai_generator
+        self.generator = generator or self._gemini_generator
         self.reranker = reranker or self._cross_encoder_rerank
         self.summarizer = summarizer or self._openai_summarizer
         self.question_rewriter = question_rewriter or self._openai_question_rewriter
@@ -328,6 +329,25 @@ class AthenasRAG:
         if len(query.split()) > threshold or any(k in query.lower() for k in keywords):
             return full_model
         return fast_model
+
+    def _gemini_generator(self, query: str, context: str) -> Tuple[str, int]:
+        """Gera uma resposta usando a API do Gemini."""
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+        model = genai.GenerativeModel("gemini-1.5-flash-latest")
+
+        prompt = (
+            "Responda à pergunta do usuário utilizando apenas o contexto "
+            "fornecido. Se a resposta não estiver presente no contexto, "
+            f"informe que não sabe.\n\nContexto:\n{context}\n\nPergunta: {query}"
+        )
+
+        response = model.generate_content(prompt)
+        resposta = response.text.strip()
+
+        tokens = 0
+
+        return resposta, tokens
 
     def _openai_generator(self, query: str, context: str) -> Tuple[str, int]:
         """Gera uma resposta usando um LLM real baseado no contexto.

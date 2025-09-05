@@ -15,13 +15,15 @@ Protótipo inicial da plataforma de **Inteligência de Acesso ao Conhecimento**.
 ## Pré-requisitos
 
 - Python 3.10+
-- [OpenAI API key](https://platform.openai.com/) disponível na variável de ambiente `OPENAI_API_KEY`
+- [Google API key](https://aistudio.google.com/app/apikey) disponível na variável de ambiente `GOOGLE_API_KEY`
+- [OpenAI API key](https://platform.openai.com/) disponível na variável de ambiente `OPENAI_API_KEY` (opcional, para recursos adicionais)
 - Docker e Docker Compose (opcional, para execução com contêineres)
 
 Crie um arquivo `.env` na raiz com as variáveis necessárias:
 
 ```bash
-OPENAI_API_KEY="sua-chave"
+GOOGLE_API_KEY="sua-chave-gemini"
+OPENAI_API_KEY="sua-chave-openai"
 OPENAI_CHAT_MODEL="gpt-4o-mini"
 OPENAI_FAST_MODEL="gpt-3.5-turbo"
 LOCAL_EMBEDDING_MODEL="local_embedding_model"
@@ -30,6 +32,12 @@ CROSS_ENCODER_MODEL="cross-encoder/ms-marco-MiniLM-L-6-v2"
 CHROMA_HOST="localhost"
 CHROMA_PORT="8001"
 ```
+
+### Opção A: Usar a API Gratuita do Gemini (Recomendado)
+
+1. Acesse o [Google AI Studio](https://aistudio.google.com/app/apikey) e crie uma chave de API.
+2. Instale as dependências com `pip install -r requirements.txt` (inclui `google-generativeai`).
+3. Adicione `GOOGLE_API_KEY` ao arquivo `.env` conforme exemplo acima.
 
 O pipeline seleciona automaticamente entre os modelos definidos em
 `OPENAI_CHAT_MODEL` e `OPENAI_FAST_MODEL` de acordo com a complexidade da
